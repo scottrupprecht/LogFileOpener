@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -13,7 +14,6 @@ namespace LogFileOpener
     {
         static void Main(string[] args)
         {
-            MessageBox.Show(Path.GetDirectoryName(args[0]));
             if (args.Length != 1)
             {
                 MessageBox.Show("File is not defined");
@@ -23,21 +23,21 @@ namespace LogFileOpener
             var filename = args[0];
             
             var isSrlog = IsFileType(filename, new List<string> { "srlog" });
-            var acceptableFileTypes = GetAcceptableFileTypes(filename);
+            
             if (isSrlog)
             {
-
-                OpenLogs(filename, acceptableFileTypes);
+                OpenLogs(filename);
                 return;
             }
             MessageBox.Show("Input needs to be a .srlog file");
         }
 
-        private static void OpenLogs(string filepath, List<string> acceptableFileTypes)
+        private static void OpenLogs(string filepath)
         {
             var logFiles = File.ReadLines(filepath);
             var validFiles = new List<string>();
             var invalidFiles = new List<string>();
+            var acceptableFileTypes = GetAcceptableFileTypes();
             foreach (var logFile in logFiles)
             {
                 if(IsFileType(logFile, acceptableFileTypes))
@@ -64,16 +64,17 @@ namespace LogFileOpener
 
             var exists = File.Exists(filename);
             var extension = Path.GetExtension(filename).Trim('.');
-            var isValidExt = extensions.Exists(ext => ext == extension);
+            var isValidExt = extensions.Exists(ext => ext.ToLower().Trim() == extension.ToLower().Trim());
             return exists && isValidExt;
         }
 
-        private static List<string> GetAcceptableFileTypes(string filename)
+        private static List<string> GetAcceptableFileTypes()
         {
             try
             {
-                var fileTypesPath = Path.GetDirectoryName(filename) + "\\" + "filetypes.txt";
-                MessageBox.Show(fileTypesPath);
+                string path = Assembly.GetExecutingAssembly().Location;
+                var directory = Path.GetDirectoryName(path);
+                var fileTypesPath = directory + "\\" + "filetypes.txt";
                 if (File.Exists(fileTypesPath))
                 {
                     var text = File.ReadAllText(fileTypesPath);
