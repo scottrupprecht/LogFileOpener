@@ -3,99 +3,107 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace LogFileOpener
 {
     class Program
     {
+        private static readonly List<string> _validFiles = new List<string>();
+        private static readonly List<string> _invalidFiles = new List<string>();
+        private static string _filename;
         static void Main(string[] args)
         {
-            if (args.Length != 1)
+            try
             {
-                MessageBox.Show("File is not defined");
-                return;
-            }
-            
-            var filename = args[0];
-            
-            var isSrlog = IsFileType(filename, new List<string> { "srlog" });
-            
-            if (isSrlog)
+                ValidateArgs(args);
+                LoadFilename(args);
+                LoadLogFiles();
+                OpenLogs();
+            }  
+            catch(Exception e)
             {
-                OpenLogs(filename);
-                return;
+                MessageBox.Show(e.Message);
             }
-            MessageBox.Show("Input needs to be a .srlog file");
         }
 
-        private static void OpenLogs(string filepath)
+        private static void OpenLogs()
         {
-            var logFiles = File.ReadLines(filepath);
-            var validFiles = new List<string>();
-            var invalidFiles = new List<string>();
-            var acceptableFileTypes = GetAcceptableFileTypes();
-            foreach (var logFile in logFiles)
-            {
-                if(IsFileType(logFile, acceptableFileTypes))
-                    validFiles.Add(logFile);
-                else
-                    invalidFiles.Add(logFile);
-            }
-
-            foreach (var validFile in validFiles)
+            foreach (var validFile in _validFiles)
             {
                 Process.Start(validFile);
             }
 
-            if (invalidFiles.Count > 1)
+            if (_invalidFiles.Count > 1)
             {
-                MessageBox.Show(string.Format("There are {0} file(s) that are invalid: {1}", invalidFiles.Count, string.Join(", ", invalidFiles)));
+                MessageBox.Show(string.Format("There are {0} file(s) that are invalid: {1}", _invalidFiles.Count, string.Join(", ", _invalidFiles)));
             }
         }
 
-        private static bool IsFileType(string filename, List<string> extensions)
+        private static void LoadLogFiles()
+        {
+            var logFiles = File.ReadLines(_filename);
+            foreach (var logFile in logFiles)
+            {
+                if (!IsValidFile(logFile))
+                {
+                    _invalidFiles.Add(logFile);
+                    continue;
+                }
+
+                if (File.GetAttributes(logFile).HasFlag(FileAttributes.Directory))
+                {
+                    var d = new DirectoryInfo(logFile);
+                    foreach (var fileInDirectory in d.GetFiles("*.*", SearchOption.TopDirectoryOnly))
+                    {
+                        _validFiles.Add(fileInDirectory.FullName);
+                    }
+                }
+                else
+                {
+                    _validFiles.Add(logFile);
+                }
+            }
+        }
+
+        private static bool IsValidFile(string filename)
+        {
+            if (filename == null || filename.Trim() == "")
+                return false;
+
+            return File.Exists(filename) || Directory.Exists(filename);
+        }
+
+        private static bool IsFileType(string filename, params string[] extensions)
         {
             if (filename == null || filename.Trim() == "")
                 return false;
 
             var exists = File.Exists(filename);
             var extension = Path.GetExtension(filename).Trim('.');
-            var isValidExt = extensions.Exists(ext => ext.ToLower().Trim() == extension.ToLower().Trim());
+            var isValidExt = extensions.ToList().Exists(ext => ext.ToLower().Trim() == extension.ToLower().Trim());
             return exists && isValidExt;
         }
 
-        private static List<string> GetAcceptableFileTypes()
+        private static void ValidateArgs(string[] args)
         {
-            try
+            if (args.Length != 1)
             {
-                string path = Assembly.GetExecutingAssembly().Location;
-                var directory = Path.GetDirectoryName(path);
-                var fileTypesPath = directory + "\\" + "filetypes.txt";
-                if (File.Exists(fileTypesPath))
-                {
-                    var text = File.ReadAllText(fileTypesPath);
-                    var fileList = new List<string>(text.Split(','));
-                    if (fileList.Count > 0)
-                        return fileList;
-                }
-                else
-                {
-                    using (StreamWriter writetext = new StreamWriter(fileTypesPath))
-                    {
-                        writetext.WriteLine("log,txt");
-                        MessageBox.Show("filetypes.txt not found, created new file");
-                    }
-                }
+                throw new Exception("File is not defined");
             }
-            catch (Exception e)
+        }
+
+        private static void LoadFilename(string[] args)
+        {
+            _filename = args[0];
+
+            var isSrlog = IsFileType(_filename, "srlog");
+
+            if (!isSrlog)
             {
-                MessageBox.Show(e.Message);
+                throw new Exception("Input needs to be a .srlog file");
             }
-            return new List<string> {"log", "txt"};
-        } 
+        }
     }
 }
+
